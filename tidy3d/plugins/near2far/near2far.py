@@ -3,12 +3,13 @@
 from typing import List, Dict
 import numpy as np
 import xarray as xr
+import dask.array as da
 import pydantic
 
 from ...constants import C_0, ETA_0, HERTZ, MICROMETER
 from ...components.data import SimulationData, FieldData
 from ...components.monitor import FieldMonitor
-from ...components.types import Direction, Axis, Coordinate
+from ...components.types import Direction, Axis, Coordinate, Numpy
 from ...components.medium import Medium
 from ...log import SetupError, ValidationError
 
@@ -417,15 +418,10 @@ the number of directions ({len(normal_dirs)})."
         sin_phi = np.sin(phi)
         cos_phi = np.cos(phi)
 
-        # make sure that observation points are interpreted w.r.t. the local origin
-        pts = [currents[name] - origin for name, origin in zip(["x", "y", "z"], self.origin)]
-
         k = self.k
 
-        phase_x = np.exp(-self.phasor_sign * 1j * k * pts[0] * sin_theta * cos_phi)
-        phase_y = np.exp(-self.phasor_sign * 1j * k * pts[1] * sin_theta * sin_phi)
-        phase_z = np.exp(-self.phasor_sign * 1j * k * pts[2] * cos_theta)
-        phase = phase_x * phase_y * phase_z
+        # make sure that observation points are interpreted w.r.t. the local origin
+        pts = [currents[name] - origin for name, origin in zip(["x", "y", "z"], self.origin)]
 
         _, idx_uv = surface.monitor.pop_axis((0, 1, 2), axis=surface.axis)
         _, source_names = surface.monitor.pop_axis(("x", "y", "z"), axis=surface.axis)
@@ -433,34 +429,139 @@ the number of directions ({len(normal_dirs)})."
         idx_u, idx_v = idx_uv
         cmp_1, cmp_2 = source_names
 
+
+
+
+        # phase_x = np.exp(-self.phasor_sign * 1j * k * pts[0] * sin_theta * cos_phi)
+        # phase_y = np.exp(-self.phasor_sign * 1j * k * pts[1] * sin_theta * sin_phi)
+        # phase_z = np.exp(-self.phasor_sign * 1j * k * pts[2] * cos_theta)
+        # phase = phase_x * phase_y * phase_z
+
+        # J = [0, 0, 0]
+        # M = [0, 0, 0]
+
+        # def integrate_2D(function, pts_u, pts_v):
+        #     """Trapezoidal integration in two dimensions."""
+        #     return np.trapz(np.trapz(function, pts_u, axis=0), pts_v, axis=0)
+
+        # J[idx_u] = integrate_2D(currents["J" + cmp_1] * phase, pts[idx_u], pts[idx_v])
+        # J[idx_v] = integrate_2D(currents["J" + cmp_2] * phase, pts[idx_u], pts[idx_v])
+
+        # M[idx_u] = integrate_2D(currents["M" + cmp_1] * phase, pts[idx_u], pts[idx_v])
+        # M[idx_v] = integrate_2D(currents["M" + cmp_2] * phase, pts[idx_u], pts[idx_v])
+
+        # # N_theta (8.33a)
+        # N_theta = J[0] * cos_theta * cos_phi + J[1] * cos_theta * sin_phi - J[2] * sin_theta
+
+        # # N_phi (8.33b)
+        # N_phi = -J[0] * sin_phi + J[1] * cos_phi
+
+        # # L_theta  (8.34a)
+        # L_theta = M[0] * cos_theta * cos_phi + M[1] * cos_theta * sin_phi - M[2] * sin_theta
+
+        # # L_phi  (8.34b)
+        # L_phi = -M[0] * sin_phi + M[1] * cos_phi
+
+
+
+
+
+        da = np
+        # currents = currents.chunk(chunks='auto')
+        # print(theta*phi)
+        # theta, phi = da.meshgrid(theta, phi, indexing='ij')
+        sin_theta = da.sin(np.atleast_1d(theta))
+        cos_theta = da.cos(np.atleast_1d(theta))
+        sin_phi = da.sin(np.atleast_1d(phi))
+        cos_phi = da.cos(np.atleast_1d(phi))
+
+        # phase_x = np.exp(-self.phasor_sign * 1j * k * pts[0] * da.outer(sin_theta, cos_phi))
+        # phase_y = np.exp(-self.phasor_sign * 1j * k * pts[1] * da.outer(sin_theta, sin_phi))
+        # phase_z = np.exp(-self.phasor_sign * 1j * k * pts[2] * cos_theta)
+ 
+        # print(phase_x.shape, phase_y.shape, phase_z.shape)
+        # phase = phase_x * phase_y * phase_z
+
+
+        term1 = np.atleast_1d(pts[0])[:, np.newaxis, np.newaxis] * da.outer(sin_theta, cos_phi)
+        # print(term1.shape)
+        term2 = np.atleast_1d(pts[1])[:, np.newaxis, np.newaxis] * da.outer(sin_theta, sin_phi)
+        # print(term2.shape)
+        term3 = (np.atleast_1d(pts[2])[:, np.newaxis] * cos_theta)[:, :, np.newaxis]
+        # print(term3.shape)
+
+
+        # term1 = np.outer(sin_theta, cos_phi)
+        # term2 = np.outer(sin_theta, sin_phi)
+        # print(term1.shape)
+
+        phase_x = (da.exp(-self.phasor_sign * 1j * k * term1))
+        phase_y = (da.exp(-self.phasor_sign * 1j * k * term2))
+        phase_z = (da.exp(-self.phasor_sign * 1j * k * term3))
+
+        # print(phase_x.shape, phase_y.shape, phase_z.shape)
+        # print((phase_x * phase_y).shape)
+        # # print(np.outer(phase_z.T, (phase_x * phase_y)).shape)
+        # print((phase_z.T * (phase_x * phase_y)).shape)
+
+        # phase = da.outer(da.outer(phase_x, phase_y), phase_z)
+        phase = np.squeeze(phase_x[:, np.newaxis, np.newaxis] * phase_y[np.newaxis, :, np.newaxis] * phase_z[np.newaxis, np.newaxis, :])
+
+        # print(phase.shape)
+        # currents["J" + cmp_1].values.reshape(phase.shape)
+        # print(currents["J" + cmp_1].values.shape)
+        # # print((currents["J" + cmp_1] * phase).shape)
+
         J = [0, 0, 0]
         M = [0, 0, 0]
+
+        # def integrate_2D(function, dim_u: str, dim_v: str):
+        #     """Trapezoidal integration in two dimensions for an xarray dataset."""
+        #     outer_integrand = function.integrate(dim_u)
+        #     return outer_integrand.integrate(dim_v)
+
+        # J[idx_u] = integrate_2D(currents["J" + cmp_1] * phase, cmp_1, cmp_2)
+        # J[idx_v] = integrate_2D(currents["J" + cmp_2] * phase, cmp_1, cmp_2)
+
+        # M[idx_u] = integrate_2D(currents["M" + cmp_1] * phase, cmp_1, cmp_2)
+        # M[idx_v] = integrate_2D(currents["M" + cmp_2] * phase, cmp_1, cmp_2)
+
+        dims = len(phase.shape) - 2
+        # extra_dims = np.newaxis * dims
 
         def integrate_2D(function, pts_u, pts_v):
             """Trapezoidal integration in two dimensions."""
             return np.trapz(np.trapz(function, pts_u, axis=0), pts_v, axis=0)
 
-        J[idx_u] = integrate_2D(currents["J" + cmp_1] * phase, pts[idx_u], pts[idx_v])
-        J[idx_v] = integrate_2D(currents["J" + cmp_2] * phase, pts[idx_u], pts[idx_v])
+        J[idx_u] = integrate_2D(currents["J" + cmp_1].values[(..., *([np.newaxis] * dims))] * phase, pts[idx_u], pts[idx_v])
+        J[idx_v] = integrate_2D(currents["J" + cmp_2].values[(..., *([np.newaxis] * dims))] * phase, pts[idx_u], pts[idx_v])
 
-        M[idx_u] = integrate_2D(currents["M" + cmp_1] * phase, pts[idx_u], pts[idx_v])
-        M[idx_v] = integrate_2D(currents["M" + cmp_2] * phase, pts[idx_u], pts[idx_v])
+        M[idx_u] = integrate_2D(currents["M" + cmp_1].values[(..., *([np.newaxis] * dims))] * phase, pts[idx_u], pts[idx_v])
+        M[idx_v] = integrate_2D(currents["M" + cmp_2].values[(..., *([np.newaxis] * dims))] * phase, pts[idx_u], pts[idx_v])
+
+        # print(J[idx_u].shape)
+
+        cos_theta_cos_phi = da.outer(cos_theta, cos_phi)
+        cos_theta_sin_phi = da.outer(cos_theta, sin_phi)
 
         # N_theta (8.33a)
-        N_theta = J[0] * cos_theta * cos_phi + J[1] * cos_theta * sin_phi - J[2] * sin_theta
+        N_theta = J[0] * cos_theta_cos_phi + J[1] * cos_theta_sin_phi - J[2] * sin_theta[:, np.newaxis]
 
         # N_phi (8.33b)
-        N_phi = -J[0] * sin_phi + J[1] * cos_phi
+        N_phi = -J[0] * sin_phi[np.newaxis, :] + J[1] * cos_phi[np.newaxis, :]
 
         # L_theta  (8.34a)
-        L_theta = M[0] * cos_theta * cos_phi + M[1] * cos_theta * sin_phi - M[2] * sin_theta
+        L_theta = M[0] * cos_theta_cos_phi + M[1] * cos_theta_sin_phi - M[2] * sin_theta[:, np.newaxis]
 
         # L_phi  (8.34b)
-        L_phi = -M[0] * sin_phi + M[1] * cos_phi
+        L_phi = -M[0] * sin_phi[np.newaxis, :] + M[1] * cos_phi[np.newaxis, :]
+
+        # print(N_theta.shape)
+
 
         return N_theta, N_phi, L_theta, L_phi
 
-    def _radiation_vectors(self, theta: float, phi: float):
+    def _radiation_vectors(self, theta: Numpy, phi: Numpy):
         """Compute radiation vectors at an angle in spherical coordinates.
 
         Parameters
@@ -477,7 +578,11 @@ the number of directions ({len(normal_dirs)})."
         """
 
         # compute radiation vectors for the dataset associated with each monitor
-        N_theta, N_phi, L_theta, L_phi = 0.0, 0.0, 0.0, 0.0
+        N_theta = np.zeros((len(np.atleast_1d(theta)), len(np.atleast_1d(phi))), dtype=complex)
+        N_phi = np.zeros_like(N_theta)
+        L_theta = np.zeros_like(N_theta)
+        L_phi = np.zeros_like(N_theta)
+
         for surface in self.surfaces:
             _N_th, _N_ph, _L_th, _L_ph = self._radiation_vectors_for_surface(
                 theta, phi, surface, self.currents[surface.monitor.name]
