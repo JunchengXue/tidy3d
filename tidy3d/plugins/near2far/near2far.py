@@ -393,7 +393,7 @@ the number of directions ({len(normal_dirs)})."
         return currents
 
     # pylint:disable=too-many-locals
-    def _radiation_vectors_for_surface_old1(
+    def _radiation_vectors_for_surface_feb_release(
         self, theta: float, phi: float, surface: Near2FarSurface, currents: xr.Dataset
     ):
         """Compute radiation vectors at an angle in spherical coordinates
@@ -466,7 +466,7 @@ the number of directions ({len(normal_dirs)})."
         return N_theta, N_phi, L_theta, L_phi
 
     # pylint:disable=too-many-locals
-    def _radiation_vectors_for_surface_old2(
+    def _radiation_vectors_for_surface_vect_numpy(
         self, theta: Numpy, phi: Numpy, surface: Near2FarSurface, currents: xr.Dataset
     ):
         """Compute radiation vectors at an angle in spherical coordinates
@@ -553,7 +553,7 @@ the number of directions ({len(normal_dirs)})."
         return N_theta, N_phi, L_theta, L_phi
 
     # pylint:disable=too-many-locals
-    def _radiation_vectors_for_surface_old3(
+    def _radiation_vectors_for_surface_vect_dask(
         self, theta: Numpy, phi: Numpy, surface: Near2FarSurface, currents: xr.Dataset
     ):
         """Compute radiation vectors at an angle in spherical coordinates
@@ -705,11 +705,11 @@ the number of directions ({len(normal_dirs)})."
         """
 
         if self.method == 1:
-            return self._radiation_vectors_for_surface_old1(theta, phi, surface, currents)
+            return self._radiation_vectors_for_surface_feb_release(theta, phi, surface, currents)
         elif self.method == 2:
-            return self._radiation_vectors_for_surface_old2(theta, phi, surface, currents)
+            return self._radiation_vectors_for_surface_vect_numpy(theta, phi, surface, currents)
         elif self.method == 3:
-            return self._radiation_vectors_for_surface_old3(theta, phi, surface, currents)
+            return self._radiation_vectors_for_surface_vect_dask(theta, phi, surface, currents)
 
         k = self.k
 
