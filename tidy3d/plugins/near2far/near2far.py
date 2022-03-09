@@ -117,6 +117,8 @@ the surface current densities.",
 Should not be changed except in special circumstatnces where the exp(-jkr) convention is used.",
     )
 
+    method: int = pydantic.Field(0)
+
     @pydantic.validator("origin", always=True)
     def set_origin(cls, val, values):
         """Sets .origin as the average of centers of all surface monitors if not provided."""
@@ -162,6 +164,7 @@ Should not be changed except in special circumstatnces where the exp(-jkr) conve
         pts_per_wavelength: int = PTS_PER_WVL,
         medium: Medium = None,
         origin: Coordinate = None,
+        method: int = 0
     ):
         """Constructs :class:`Near2Far` from a list of surface monitors and their directions.
 
@@ -205,6 +208,7 @@ the number of directions ({len(normal_dirs)})."
             pts_per_wavelength=pts_per_wavelength,
             medium=medium,
             origin=origin,
+            method=method
         )
 
     @pydantic.validator("currents", always=True)
@@ -699,6 +703,13 @@ the number of directions ({len(normal_dirs)})."
         tuple[float, float, float, float]
             ``N_theta``, ``N_phi``, ``L_theta``, ``L_phi`` radiation vectors for the given surface.
         """
+
+        if self.method == 1:
+            return self._radiation_vectors_for_surface_old1(theta, phi, surface, currents)
+        elif self.method == 2:
+            return self._radiation_vectors_for_surface_old2(theta, phi, surface, currents)
+        elif self.method == 3:
+            return self._radiation_vectors_for_surface_old3(theta, phi, surface, currents)
 
         k = self.k
 
