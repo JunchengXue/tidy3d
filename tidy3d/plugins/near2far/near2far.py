@@ -421,6 +421,9 @@ the number of directions ({len(normal_dirs)})."
             ``N_theta``, ``N_phi``, ``L_theta``, ``L_phi`` radiation vectors for the given surface.
         """
 
+        theta = np.squeeze(theta)
+        phi = np.squeeze(phi)
+
         # precompute trig functions
         sin_theta = np.sin(theta)
         cos_theta = np.cos(theta)
@@ -759,7 +762,7 @@ the number of directions ({len(normal_dirs)})."
         """
 
         # compute radiation vectors for the dataset associated with each monitor
-        N_theta = np.zeros((len(np.atleast_1d(theta)), len(np.atleast_1d(phi))), dtype=complex)
+        N_theta = np.zeros((len(theta), len(phi)), dtype=complex)
         N_phi = np.zeros_like(N_theta)
         L_theta = np.zeros_like(N_theta)
         L_phi = np.zeros_like(N_theta)
@@ -775,7 +778,7 @@ the number of directions ({len(normal_dirs)})."
 
         return N_theta, N_phi, L_theta, L_phi
 
-    def fields_spherical(self, r: float, theta: Array[float], phi: Array[float]):
+    def fields_spherical(self, r: float, theta: Array[float], phi: Array[float]) -> List[xr.Dataset]:
         """Get fields at a point relative to monitor center in spherical coordinates.
 
         Parameters
@@ -793,6 +796,9 @@ the number of directions ({len(normal_dirs)})."
             (Er, Etheta, Ephi), (Hr, Htheta, Hphi), numpy arrays of fields in polar coordinates.
         """
 
+        theta = np.atleast_1d(theta)
+        phi = np.atleast_1d(phi)
+
         # project radiation vectors to distance r away for given angles
         N_theta, N_phi, L_theta, L_phi = self._radiation_vectors(theta, phi)
 
@@ -804,42 +810,92 @@ the number of directions ({len(normal_dirs)})."
         )
 
         # assemble E felds
-        E_theta = -scalar_proj_r * (L_phi + eta * N_theta)
-        E_phi = scalar_proj_r * (L_theta - eta * N_phi)
-        E_r = np.zeros_like(E_phi)
-        E = np.stack((E_r, E_theta, E_phi))
+        Et_array = -scalar_proj_r * (L_phi + eta * N_theta)
+        Ep_array = scalar_proj_r * (L_theta - eta * N_phi)
+        Er_array = np.zeros_like(Ep_array)
+        # E = np.stack((Er_array, Et_array, Ep_array))
 
         # assemble H fields
-        H_theta = -E_phi / eta
-        H_phi = E_theta / eta
-        H_r = np.zeros_like(H_phi)
-        H = np.stack((H_r, H_theta, H_phi))
+        Ht_array = -Ep_array / eta
+        Hp_array = Et_array / eta
+        Hr_array = np.zeros_like(Hp_array)
+        # H = np.stack((Hr_array, Ht_array, Hp_array))
+
+        dims = ('r', 'theta', 'phi')
+        coords = {'r':[r], 'theta':theta, 'phi':phi}
+
+        Er = xr.DataArray(data=Er_array[None, ...], coords=coords, dims=dims)
+        Et = xr.DataArray(data=Et_array[None, ...], coords=coords, dims=dims)
+        Ep = xr.DataArray(data=Ep_array[None, ...], coords=coords, dims=dims)
+        E = xr.Dataset({'E_r': Er, 'E_theta': Et, 'E_phi': Ep})
+
+        Hr = xr.DataArray(data=Hr_array[None, ...], coords=coords, dims=dims)
+        Ht = xr.DataArray(data=Ht_array[None, ...], coords=coords, dims=dims)
+        Hp = xr.DataArray(data=Hp_array[None, ...], coords=coords, dims=dims)
+        H = xr.Dataset({'H_r': Hr, 'H_theta': Ht, 'H_phi': Hp})
 
         return E, H
 
-    def fields_cartesian(self, x, y, z):
+    def fields_cartesian(self, x: Array[float], y: Array[float], z: Array[float]):
         """Get fields at a point relative to monitor center in cartesian coordinates.
 
         Parameters
         ----------
-        x : float
-            (micron) x position relative to the local origin.
-        y : float
-            (micron) y position relative to the local origin.
-        z : float
-            (micron) z position relative to the local origin.
+        x : numpy.array[float]
+            (micron) x positions relative to the local origin.
+        y : numpy.array[float]
+            (micron) y positions relative to the local origin.
+        z : numpy.array[float]
+            (micron) z positions relative to the local origin.
 
         Returns
         -------
         tuple
             (Ex, Ey, Ez), (Hx, Hy, Hz), fields in cartesian coordinates.
         """
-        r, theta, phi = self._car_2_sph(x, y, z)
-        E, H = self.fields_spherical(r, theta, phi)
-        Er, Etheta, Ephi = E
-        Hr, Htheta, Hphi = H
-        E = Ex, Ey, Ez = self._sph_2_car_field(Er, Etheta, Ephi, theta, phi)
-        H = Hx, Hy, Hz = self._sph_2_car_field(Hr, Htheta, Hphi, theta, phi)
+        x, y, z = [t for t in [np.atleast_1d(x), np.atleast_1d(y), np.atleast_1d(z)]]
+
+        Ex_data = np.zeros((len(x), len(y), len(z)), dtype=complex)
+        Ey_data = np.zeros_like(Ex_data)
+        Ez_data = np.zeros_like(Ex_data)
+
+        Hx_data = np.zeros((len(x), len(y), len(z)), dtype=complex)
+        Hy_data = np.zeros_like(Hx_data)
+        Hz_data = np.zeros_like(Hx_data)
+
+        for i in np.arange(len(x)):
+            _x = x[i]
+            for j in np.arange(len(y)):
+                _y = y[j]
+                for k in np.arange(len(z)):
+                    _z = z[k]
+
+                    r, theta, phi = self._car_2_sph(_x, _y, _z)
+                    _E, _H = self.fields_spherical(r, theta, phi)
+
+                    Er, Etheta, Ephi = [_E[comp].values for comp in ['E_r', 'E_theta', 'E_phi']]
+                    Hr, Htheta, Hphi = [_H[comp].values for comp in ['H_r', 'H_theta', 'H_phi']]
+
+                    Ex_data[i, j, k], Ey_data[i, j, k], Ez_data[i, j, k] = self._sph_2_car_field(
+                        Er, Etheta, Ephi, theta, phi
+                        )
+                    Hx_data[i, j, k], Hy_data[i, j, k], Hz_data[i, j, k] = self._sph_2_car_field(
+                        Hr, Htheta, Hphi, theta, phi
+                        )
+
+        dims = ('x', 'y', 'z')
+        coords = {'x':x, 'y':y, 'z':z}
+
+        Ex = xr.DataArray(data=Ex_data, coords=coords, dims=dims)
+        Ey = xr.DataArray(data=Ey_data, coords=coords, dims=dims)
+        Ez = xr.DataArray(data=Ez_data, coords=coords, dims=dims)
+        E = xr.Dataset({'Ex': Ex, 'Ey': Ey, 'Ez': Ez})
+
+        Hx = xr.DataArray(data=Hx_data, coords=coords, dims=dims)
+        Hy = xr.DataArray(data=Hy_data, coords=coords, dims=dims)
+        Hz = xr.DataArray(data=Hz_data, coords=coords, dims=dims)
+        H = xr.Dataset({'Hx': Hx, 'Hy': Hy, 'Hz': Hz})
+
         return E, H
 
     def power_spherical(self, r: float, theta: Array[float], phi: Array[float]) -> Array[float]:
@@ -860,33 +916,52 @@ the number of directions ({len(normal_dirs)})."
             Power at point relative to the local origin.
         """
         E, H = self.fields_spherical(r, theta, phi)
-        _, E_theta, E_phi = E
-        _, H_theta, H_phi = H
+        _, E_theta, E_phi = [np.squeeze(E[comp].values) for comp in ['E_r', 'E_theta', 'E_phi']]
+        _, H_theta, H_phi = [np.squeeze(H[comp].values) for comp in ['H_r', 'H_theta', 'H_phi']]
         power_theta = 0.5 * np.real(E_theta * np.conj(H_phi))
         power_phi = 0.5 * np.real(-E_phi * np.conj(H_theta))
-        return power_theta + power_phi
+        power_data = power_theta + power_phi
 
-    def power_cartesian(self, x, y, z):
+        dims = ('r', 'theta', 'phi')
+        coords = {'r':[r], 'theta':[theta], 'phi':[phi]}
+        return xr.DataArray(data=power_data, coords=coords, dims=dims)
+
+    def power_cartesian(self, x: Array[float], y: Array[float], z: Array[float]):
         """Get power scattered to a point relative to the local origin in cartesian coordinates.
 
         Parameters
         ----------
-        x : float
-            (micron) x distance relative to the local origin.
-        y : float
-            (micron) y distance relative to the local origin.
-        z : float
-            (micron) z distance relative to the local origin.
+        x : numpy.array[float]
+            (micron) x distances relative to the local origin.
+        y : numpy.array[float]
+            (micron) y distances relative to the local origin.
+        z : numpy.array[float]
+            (micron) z distances relative to the local origin.
 
         Returns
         -------
         float
             Power at point relative to the local origin.
         """
-        r, theta, phi = self._car_2_sph(x, y, z)
-        return self.power_spherical(r, theta, phi)
+        x, y, z = [t for t in [np.atleast_1d(x), np.atleast_1d(y), np.atleast_1d(z)]]
 
-    def radar_cross_section(self, theta: Array[float], phi: Array[float]) -> Array[float]:
+        power_data = np.zeros((len(x), len(y), len(z)), dtype=complex)
+
+        for i in np.arange(len(x)):
+            _x = x[i]
+            for j in np.arange(len(y)):
+                _y = y[j]
+                for k in np.arange(len(z)):
+                    _z = z[k]
+
+                    r, theta, phi = self._car_2_sph(_x, _y, _z)
+                    power_data[i, j, k] = self.power_spherical(r, theta, phi).values
+
+        dims = ('x', 'y', 'z')
+        coords = {'x':x, 'y':y, 'z':z}
+        return xr.DataArray(data=power_data, coords=coords, dims=dims)
+
+    def radar_cross_section(self, theta: Array[float], phi: Array[float]) -> xr.DataArray:
         """Get radar cross section at a point relative to the local origin in
         units of incident power.
 
@@ -903,6 +978,9 @@ the number of directions ({len(normal_dirs)})."
             Radar cross section at angles relative to the local origin.
         """
 
+        theta = np.atleast_1d(theta)
+        phi = np.atleast_1d(phi)
+
         _, index_k = self.nk
         if index_k != 0.0:
             raise SetupError("Can't compute RCS for a lossy background medium.")
@@ -917,7 +995,11 @@ the number of directions ({len(normal_dirs)})."
         constant = k**2 / (8 * np.pi * eta)
         term1 = np.abs(L_phi + eta * N_theta) ** 2
         term2 = np.abs(L_theta - eta * N_phi) ** 2
-        return constant * (term1 + term2)
+        RCS_data = constant * (term1 + term2)
+
+        dims = ('theta', 'phi')
+        coords = {'theta':theta, 'phi':phi}
+        return xr.DataArray(data=RCS_data, coords=coords, dims=dims)
 
     @staticmethod
     def _car_2_sph(x, y, z):
