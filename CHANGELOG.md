@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Allowed users to provide observation coordinates as vectors in `tidy3d.plugins.Near2Far` and optimized the routines therein for faster computation of far fields.
+- Backend now uses custom time dependence for sources based on those defined in the frontend code.
+
 ## [1.1.1] - 2022-3-2
 
 ### Added
