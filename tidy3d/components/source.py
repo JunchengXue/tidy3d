@@ -7,7 +7,7 @@ import pydantic
 import numpy as np
 
 from .base import Tidy3dBaseModel
-from .types import Direction, Polarization, Ax, FreqBound, Array
+from .types import Direction, Polarization, Ax, FreqBound, Array, Axis, Coordinate, Size
 from .validators import assert_plane, validate_name_str
 from .geometry import Box
 from .mode import ModeSpec
@@ -291,6 +291,119 @@ class VolumeSource(Source):
         title="Polarization",
         description="Specifies the direction and type of current component.",
     )
+
+
+class TotalFieldScatteredFieldSource(Source):
+    """Total-field / scattered-field source.
+
+    Example
+    -------
+    >>> pulse = GaussianPulse(freq0=200e12, fwidth=20e12)
+    >>> tfsf_source = TotalFieldScatteredFieldSource(
+            center=(0,0,0),
+            size=(5,5,5),
+            source_time=pulse,
+            injection_axis=2,
+            direction="+",
+        )
+    """
+
+    injection_axis: Axis = pydantic.Field(
+        ...,
+        title="Injection axis",
+        description="Specifies the :class:`.Axis` along which the source is injected.",
+    )
+
+    direction: Direction = pydantic.Field(
+        ...,
+        title="Direction",
+        description="Sets propagation :class:`.Direction` of the incident wave with respect to "
+        "``injection_axis``.",
+    )
+
+    # Copied from GaussianBeam
+    angle_theta: float = pydantic.Field(
+        0.0,
+        title="Polar Angle",
+        description="Polar angle from ``injection_axis``.",
+        units=RADIAN,
+    )
+
+    # Copied from GaussianBeam
+    angle_phi: float = pydantic.Field(
+        0.0,
+        title="Azimuth Angle",
+        description="Azimuth angle in the plane orthogonal to ``injection_axis``.",
+        units=RADIAN,
+    )
+
+    # Copied from AngledFieldSource
+    pol_angle: float = pydantic.Field(
+        0,
+        title="Polarization Angle",
+        description="Specifies the angle between the electric field polarization of the "
+        "source and the plane defined by the normal axis and the propagation axis (rad). "
+        "``pol_angle=0`` (default) specifies P polarization, "
+        "while ``pol_angle=np.pi/2`` specifies S polarization. "
+        "At normal incidence when S and P are undefined, ``pol_angle=0`` defines: "
+        "- ``Ey`` polarization for propagation along ``x``."
+        "- ``Ex`` polarization for propagation along ``y``."
+        "- ``Ex`` polarization for propagation along ``z``.",
+        units=RADIAN,
+    )
+
+    @classmethod
+    def from_propagation_vector(
+        cls,
+        center: Coordinate,
+        size: Size,
+        propagation_vector: Tuple[float, float, float],
+        pol_angle: float
+    ):
+        """Constructs :class:`TotalFieldScatteredFieldSource` given a propagation vector 
+        and polarization angle.
+
+        Parameters
+        ----------
+        center : Tuple[float, float, float]
+            Center of the total field region in x, y, and z.
+        size : Tuple[float, float, float]
+            Size of the total field region in x, y, and z directions.
+            Each element must be non-negative.
+        propagation_vector : Tuple[float, float, float]
+            Specifies a vector in Cartesian coordinates along which the incident wave propagates.
+        pol_angle : float
+            Specifies the angle between the electric field polarization of the 
+            source and the plane defined by the normal axis and the propagation axis (rad). 
+            ``pol_angle=0`` (default) specifies P polarization, 
+            while ``pol_angle=np.pi/2`` specifies S polarization. 
+            At normal incidence when S and P are undefined, ``pol_angle=0`` defines: 
+            - ``Ey`` polarization for propagation along ``x``.
+            - ``Ex`` polarization for propagation along ``y``.
+            - ``Ex`` polarization for propagation along ``z``.
+        """
+
+        # Strategy: pick an arbitrary surface to be the injection plane, say z-,
+        # so that the injection axis is z, then compute the theta and phi angles between
+        # propagation_vector and the injection axis. If angle_theta ends up > pi/2,
+        # then reverse the injection axis (i.e., set ``direction`` to "-") and modify
+        # angle_theta and angle_phi accordingly.
+
+        injection_axis = 2
+        direction = "+"
+        # TODO
+        angle_theta = 0
+        angle_phi = 0
+
+        return cls(
+            center=center,
+            size=size,
+            injection_axis=injection_axis,
+            direction=direction,
+            angle_theta=angle_theta,
+            angle_phi=angle_phi,
+            pol_angle=pol_angle
+        )
 
 
 class FieldSource(Source, ABC):
