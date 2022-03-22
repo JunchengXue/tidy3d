@@ -15,7 +15,7 @@ from .viz import add_ax_if_none, SourceParams, equal_aspect
 from .viz import ARROW_COLOR_SOURCE, ARROW_ALPHA, ARROW_COLOR_POLARIZATION
 from ..constants import RADIAN, HERTZ, MICROMETER
 from ..constants import inf  # pylint:disable=unused-import
-from ..log import SetupError
+from ..log import SetupError, log
 
 # in spectrum computation, discard amplitudes with relative magnitude smaller than cutoff
 DFT_CUTOFF = 1e-8
@@ -293,13 +293,13 @@ class VolumeSource(Source):
     )
 
 
-class TotalFieldScatteredFieldSource(Source):
+class TFSF(Source):
     """Total-field / scattered-field source.
 
     Example
     -------
     >>> pulse = GaussianPulse(freq0=200e12, fwidth=20e12)
-    >>> tfsf_source = TotalFieldScatteredFieldSource(
+    >>> tfsf_source = TFSF(
             center=(0,0,0),
             size=(5,5,5),
             source_time=pulse,
@@ -352,6 +352,20 @@ class TotalFieldScatteredFieldSource(Source):
         units=RADIAN,
     )
 
+    @pydantic.validator("angle_theta", always=True)
+    def ensure_forward_propagation(cls, val):
+        """ensure that theta is defined so that the wave is not propagating in the reverse
+        direction to that implied by the provided ``injection_axis`` and ``direction``."""
+        # to account for angles larger than 360 degrees, adjust theta to within the range [-pi, pi]
+        theta_adjusted = np.abs((val + np.pi + 2.0 * np.pi) % (2.0 * np.pi) - np.pi)
+        if theta_adjusted > np.pi / 2.0:
+            raise SetupError(
+                f"Propagation angle theta provided, {val}, is not consistent with the propagation "
+                "direction implied by ``injection_axis`` and ``direction``. ``angle_theta`` must "
+                f"lie between 0 and pi/2."
+            )
+        return val
+
     @classmethod
     def from_propagation_vector(
         cls,
@@ -360,7 +374,7 @@ class TotalFieldScatteredFieldSource(Source):
         propagation_vector: Tuple[float, float, float],
         pol_angle: float
     ):
-        """Constructs :class:`TotalFieldScatteredFieldSource` given a propagation vector 
+        """Constructs :class:`TFSF` given a propagation vector 
         and polarization angle.
 
         Parameters
@@ -621,4 +635,4 @@ class GaussianBeam(AngledFieldSource):
 
 
 # sources allowed in Simulation.sources
-SourceType = Union[VolumeSource, PlaneWave, ModeSource, GaussianBeam]
+SourceType = Union[VolumeSource, PlaneWave, ModeSource, GaussianBeam, TFSF]
