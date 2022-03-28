@@ -1,6 +1,8 @@
 """ Tidy3d package imports"""
 from concurrent.futures import ProcessPoolExecutor, process
 
+import requests
+from packaging.version import Version
 from rich import pretty, traceback
 
 # version
@@ -66,3 +68,20 @@ from .components.grid import YeeGrid, FieldGrid, Coords1D
 # make all stdout and errors pretty
 pretty.install()
 # traceback.install()
+
+try:
+    resp = requests.get("https://api.github.com/repos/flexcompute/tidy3d/releases/latest")
+    json_resp = resp.json()
+    tidy3d_version = Version(__version__)
+    release_version = Version(json_resp["name"])
+    if tidy3d_version < release_version:
+        print(
+            f"WARNING: You are using tidy3d version {tidy3d_version};"
+            f" however, version {release_version} is available."
+        )
+        print(
+            "You should consider upgrading via the 'python -m pip install --upgrade tidy3d' command"
+        )
+except Exception:  # pylint: disable=broad-except
+    # silence if getting release information failed.
+    pass
