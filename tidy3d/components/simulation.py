@@ -119,6 +119,7 @@ class Simulation(Box):  # pylint:disable=too-many-public-methods
         description="Background medium of simulation, defaults to vacuum if not specified.",
     )
 
+    # TODO: this field should be deprecated in favour of `boundaries`
     symmetry: Tuple[Symmetry, Symmetry, Symmetry] = pydantic.Field(
         (0, 0, 0),
         title="Symmetries",
@@ -151,12 +152,24 @@ class Simulation(Box):  # pylint:disable=too-many-public-methods
         "Note: monitor names are used to access data after simulation is run.",
     )
 
+    # boundaries: Tuple[Boundary1D, Boundary1D, Boundary1D] = pydantic.Field(
+    #     (["PBC", "PBC"], ["PBC", "PBC"], ["PBC", "PBC"]),
+    #     title="Boundary Definitions",
+    #     description="Specifications for the boundary condition on the min and max "
+    #     "coordinates along the x, y, and z dimensions. "
+    #     "Reflection symmetry across a plane bisecting the simulation domain normal "
+    #     "to the x-, y-, and z-axis, respectvely, can be specified as "
+    #     "``1`` (even, i.e. 'PMC' symmetry) or ``-1`` (odd, i.e. 'PEC' symmetry). "
+    #     "Note that the vectorial nature of the fields must be taken into account "
+    #     "to correctly determine the symmetry value.",
+    # )
+
+    # TODO: this field should be deprecated in favour of `boundaries`
     pml_layers: Tuple[PMLTypes, PMLTypes, PMLTypes] = pydantic.Field(
         (None, None, None),
         title="Absorbing Layers",
         description="Specifications for the absorbing layers on x, y, and z edges. "
-        "If ``None``, no absorber will be added on that dimension "
-        "and periodic boundary conditions will be used.",
+        "If ``None``, no absorber will be added on that dimension.",
     )
 
     shutoff: pydantic.NonNegativeFloat = pydantic.Field(
@@ -189,6 +202,12 @@ class Simulation(Box):  # pylint:disable=too-many-public-methods
         __version__,
         title="Version",
         description="String specifying the front end version number.",
+    )
+
+    # TODO: temporary
+    use_complex_fields: bool = pydantic.Field(
+        False,
+        title="Use complex-valued fields",
     )
 
     """ Validating setup """

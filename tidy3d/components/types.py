@@ -80,7 +80,7 @@ FreqBound = Tuple[FreqBoundMin, FreqBoundMax]
 
 """ symmetries """
 
-Symmetry = Literal[0, -1, 1]
+Symmetry = Literal[0, -1, 1] # TODO: remove 0 because it is redundant with BoundaryType
 
 """ sources """
 
