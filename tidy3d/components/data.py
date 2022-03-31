@@ -9,7 +9,7 @@ import xarray as xr
 import numpy as np
 import h5py
 
-from .types import Numpy, Direction, Array, numpy_encoding, Literal, Ax, Coordinate, Symmetry, Axis
+from .types import Numpy, Direction, Array, ArrayLike, numpy_encoding, Literal, Ax, Coordinate, Symmetry, Axis
 from .base import Tidy3dBaseModel
 from .simulation import Simulation
 from .grid import YeeGrid
@@ -547,7 +547,7 @@ class ScalarFieldTimeData(AbstractScalarFieldData, TimeData):
     >>> data = ScalarFieldTimeData(values=values, x=x, y=y, z=z, t=t)
     """
 
-    values: Union[Array[float], Array[complex], Array[np.complex64]]
+    values: ArrayLike
     data_attrs: Dict[str, str] = None  # {'units': '[E] = V/m, [H] = A/m'}
     type: Literal["ScalarFieldTimeData"] = "ScalarFieldTimeData"
 
