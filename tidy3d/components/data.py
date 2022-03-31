@@ -547,7 +547,8 @@ class ScalarFieldTimeData(AbstractScalarFieldData, TimeData):
     >>> data = ScalarFieldTimeData(values=values, x=x, y=y, z=z, t=t)
     """
 
-    values: Union[Array[float], Array[complex]]
+    # values: Union[Array[float], Array[complex]]
+    values: Array[complex]
     data_attrs: Dict[str, str] = None  # {'units': '[E] = V/m, [H] = A/m'}
     type: Literal["ScalarFieldTimeData"] = "ScalarFieldTimeData"
 
