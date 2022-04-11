@@ -3,6 +3,10 @@ from abc import ABC, abstractmethod
 from tidy3d import SimulationData
 from tidy3d.plugins.plotly import SimulationPlotly, SimulationDataApp
 from tidy3d.plugins.plotly.data import DataPlotly
+from functools import lru_cache
+from flask_caching import Cache
+
+from tidy3d.plugins.plotly.stateless_app import cache
 
 FrontEndStore = {}
 
@@ -38,17 +42,23 @@ class LocalStore(Store):
         return self.sim_data
 
 
+
 class S3Store(Store):
 
+    @cache.cached(timeout=50)
     def get_simulation_data(self, front_end_store: FrontEndStore):
         if front_end_store and front_end_store.get("task_id") == "1":
-            sim_data = SimulationDataApp.from_file("../../../data/monitor_data.hdf5")
+            sim_data = SimulationDataApp.from_file("/tmp/12346.hdf5")
         else:
             sim_data = SimulationDataApp.from_file("../../../data/has_source.hdf5")
         return sim_data.sim_data
 
 
 _DEFAULT_STORE = S3Store()
+
+
+sim_data=_DEFAULT_STORE.get_simulation_data({"task_id": "1"})
+print(sim_data)
 
 
 def set_store(store: Store):

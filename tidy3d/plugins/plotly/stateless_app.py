@@ -5,10 +5,13 @@ from dash import dcc, html, callback
 from dash.dependencies import Input, Output
 from callback import *
 from tidy3d.plugins.plotly.store import FrontEndStore
+from flask_caching import Cache
 
 app = dash.Dash(__name__, suppress_callback_exceptions=True)
 VALID_USERNAME_PASSWORD_PAIRS = {"hello": "world!"}
 
+cache = Cache(config={"CACHE_TYPE": "SimpleCache"})
+cache.init_app(app.server)
 
 def stateless_layout():
     return html.Div(
